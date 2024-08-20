@@ -67,13 +67,13 @@ public class AutoScalerOptions {
                     .withDescription(
                             "Enable backpropagation of processing rate during autoscaling to reduce resources usage.");
 
-    public static final ConfigOption<Boolean> BOTTLENECK_PROPAGATION_SCALE_DOWN_ENABLED =
-            autoScalerConfig("bottleneck-propagation.allow-scale-down")
-                    .booleanType()
-                    .defaultValue(false)
+    public static final ConfigOption<Double> PROCESSING_RATE_BACKPROPAGATION_IMPACT =
+            autoScalerConfig("processing.rate.backpropagation.impact")
+                    .doubleType()
+                    .defaultValue(0.0)
                     .withFallbackKeys(
-                            oldOperatorConfigKey("bottleneck-propagation.allow-scale-down"))
-                    .withDescription("Allow vertices scale down during bottleneck propagation.");
+                            oldOperatorConfigKey("processing.rate.backpropagation.impact"))
+                    .withDescription("How strong should backpropagated values affect scaling. 0 - means no affect, 1 - use backpropagated values");
 
     public static final ConfigOption<Duration> METRICS_WINDOW =
             autoScalerConfig("metrics.window")

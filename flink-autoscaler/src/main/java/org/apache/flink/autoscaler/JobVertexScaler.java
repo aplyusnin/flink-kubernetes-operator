@@ -160,8 +160,36 @@ public class JobVertexScaler<KEY, Context extends JobAutoScalerContext<KEY>> {
             JobVertexID vertex,
             JobTopology topology,
             EvaluatedMetrics evaluatedMetrics,
-            Map<JobVertexID, Double> backpropScaleFactors,
+            Map<JobVertexID, Double> realDataRates,
             List<String> excludedVertices) {
+
+        double realDataRate = evaluatedMetrics.getVertexMetrics().get(vertex).get(TARGET_DATA_RATE).getCurrent();
+
+        for (var downstream : topology.getVertexInfos().get(vertex).getOutputs().keySet()) {
+            double downstreamTargetDataRate = evaluatedMetrics.getVertexMetrics().get(downstream).get(TARGET_DATA_RATE).getCurrent();
+            double downstreamRealDataRate = realDataRates.getOrDefault(downstream, Double.NaN);
+            int upstreamVertices = topology.getVertexInfos().get(downstream).getInputs().size();
+
+            double outputRatio = topology.getVertexInfos().get(downstream).getInputRatios().getOrDefault(vertex, Double.NaN);
+
+            // if real data rate cannot be updated by the downstream vertex
+            if (Double.isNaN(downstreamRealDataRate) || Double.isInfinite(downstreamRealDataRate)) {
+                continue;
+            }
+            if (Double.isNaN(downstreamTargetDataRate) || Double.isInfinite(downstreamTargetDataRate)) {
+                continue;
+            }
+            if (Double.isNaN(outputRatio) || Double.isInfinite(outputRatio)) {
+                continue;
+            }
+
+            // distribute downstream's data rate delta over all upstream vertices
+            double downstreamDelta = (downstreamTargetDataRate - downstreamRealDataRate) / upstreamVertices;
+            double upstreamDelta = downstreamDelta / outputRatio;
+
+            
+        }
+
 
         double averageTrueProcessingRate =
                 evaluatedMetrics

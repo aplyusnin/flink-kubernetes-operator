@@ -36,6 +36,7 @@ import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
+import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,7 +270,9 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
             Duration restartTime,
             JobTopology jobTopology) {
         var conf = context.getConfiguration();
-        var backpropScaleFactors = new HashMap<JobVertexID, Double>();
+        double backpropagationImpact = conf.getDouble(AutoScalerOptions.PROCESSING_RATE_BACKPROPAGATION_IMPACT);
+        Preconditions.checkState(0 <= backpropagationImpact && backpropagationImpact <= 1.0, "Backpropagation impact should be in range [0, 1]");
+        var realDataRates = new HashMap<JobVertexID, Double>();
         var excludeVertexIdList =
                 context.getConfiguration().get(AutoScalerOptions.VERTEX_EXCLUDE_IDS);
         var vertexIterator =
@@ -277,24 +280,16 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
                         .getVerticesInTopologicalOrder()
                         .listIterator(jobTopology.getVerticesInTopologicalOrder().size());
 
-        boolean canPropagate = true;
-
         // backpropagate scale factors
-        while (canPropagate && vertexIterator.hasPrevious()) {
+        while (vertexIterator.hasPrevious()) {
             var vertex = vertexIterator.previous();
-            canPropagate =
-                    jobVertexScaler.propagateBackpropScaleFactor(
-                            conf,
-                            vertex,
-                            jobTopology,
-                            evaluatedMetrics,
-                            backpropScaleFactors,
-                            excludeVertexIdList);
-        }
-
-        if (!canPropagate) {
-            LOG.debug("Cannot properly perform backpropagation because metrics are incomplete");
-            return;
+            jobVertexScaler.propagateBackpropScaleFactor(
+                    conf,
+                    vertex,
+                    jobTopology,
+                    evaluatedMetrics,
+                    realDataRates,
+                    excludeVertexIdList);
         }
 
         // use an extra map to not lose precision
@@ -312,7 +307,7 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
                                         .get(vertex)
                                         .get(TARGET_DATA_RATE)
                                         .getAverage()
-                                * backpropScaleFactors.getOrDefault(vertex, 1.0);
+                                * (1.0 - backpropagationImpact) + backpropagationImpact * realDataRates.get(vertex);
             } else {
                 for (var input : jobTopology.getVertexInfos().get(vertex).getInputs().keySet()) {
                     adjustedCapacity +=

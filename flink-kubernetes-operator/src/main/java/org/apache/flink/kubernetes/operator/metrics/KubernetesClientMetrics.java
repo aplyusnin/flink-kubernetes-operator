@@ -45,6 +45,8 @@ import java.util.function.LongSupplier;
 /** Kubernetes client metrics. */
 public class KubernetesClientMetrics implements Interceptor {
 
+    private static final Logger LOG = LoggerFactory.getLogger(KubernetesClientMetrics.class);
+
     public static final String KUBE_CLIENT_GROUP = "KubeClient";
     public static final String HTTP_REQUEST_GROUP = "HttpRequest";
     public static final String HTTP_REQUEST_FAILED_GROUP = "Failed";
@@ -156,6 +158,7 @@ public class KubernetesClientMetrics implements Interceptor {
             HttpResponse<?> response,
             AsyncBody.Consumer<List<ByteBuffer>> consumer) {
         trackRequestLatency(request);
+        LOG.info("Response code: {}", response.code());
         updateResponseMetrics(response);
     }
 
